@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Poppins", sans-serif;
+}
+
+.container {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 10px;
+}
+/* Hide scrollbar globally across the entire application */
+html, body {
+  -ms-overflow-style: none; 
+  scrollbar-width: none;     
+}
+
+html::-webkit-scrollbar, 
+body::-webkit-scrollbar {
+  display: none;           
+}
+
+
+/* Global scrollbar hide - Applies to ALL elements */
+* {
+  scrollbar-width: none !important;  /* Firefox */
+  -ms-overflow-style: none !important;  /* IE and Edge */
+}
+
+/* Chrome, Safari, Edge */
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Ensure body doesn't show scrollbar */
+body {
+  overflow-y: scroll; /* Keep scroll functionality */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+.button{
+  cursor: pointer !important;
+}
