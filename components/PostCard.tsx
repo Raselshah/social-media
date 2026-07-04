@@ -1,6 +1,7 @@
 'use client';
 
 import { Post, User } from '@/types';
+import { useComments } from '@/hooks/useComments';
 import { EllipsisVertical } from 'lucide-react';
 import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
@@ -113,7 +114,10 @@ export const PostCard: React.FC<PostCardProps> = ({
   // State for the main post comment input
   const [commentText, setCommentText] = useState('');
   const [isCommentFocused, setIsCommentFocused] = useState(false);
-  
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  const { createComment } = useComments(post.id, showComments);
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,11 +139,20 @@ export const PostCard: React.FC<PostCardProps> = ({
     }
   };
 
-  const handleCommentSubmit = () => {
-    if (commentText.trim()) {
-  
+  const handleCommentSubmit = async () => {
+    const content = commentText.trim();
+    if (!content || isSubmittingComment) return;
+
+    setIsSubmittingComment(true);
+    try {
+      await createComment(content);
       setCommentText('');
+      setShowComments(true);
       onCommentCreated?.(post.id);
+    } catch (error) {
+      console.error('Failed to create comment:', error);
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 

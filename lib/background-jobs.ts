@@ -1,63 +1,35 @@
-type SocialEventName =
-  | 'post.created'
-  | 'post.reaction.toggled'
-  | 'comment.created'
-  | 'comment.reaction.toggled'
-  | 'reply.created'
-  | 'reply.reaction.toggled';
+/**
+ * @deprecated Use Kafka via @/lib/kafka/producer instead.
+ * Kept for backward compatibility with legacy API routes.
+ */
+import { SOCIAL_EVENTS, type SocialEventType } from '@/constants/events';
+import { publishEvent } from '@/lib/kafka/producer';
 
+type LegacyEventMap = {
+  'post.created': typeof SOCIAL_EVENTS.POST_CREATED;
+  'post.reaction.toggled': typeof SOCIAL_EVENTS.LIKE_ADDED;
+  'comment.created': typeof SOCIAL_EVENTS.COMMENT_CREATED;
+  'comment.reaction.toggled': typeof SOCIAL_EVENTS.LIKE_ADDED;
+  'reply.created': typeof SOCIAL_EVENTS.COMMENT_CREATED;
+  'reply.reaction.toggled': typeof SOCIAL_EVENTS.LIKE_ADDED;
+};
+
+const legacyMapping: LegacyEventMap = {
+  'post.created': SOCIAL_EVENTS.POST_CREATED,
+  'post.reaction.toggled': SOCIAL_EVENTS.LIKE_ADDED,
+  'comment.created': SOCIAL_EVENTS.COMMENT_CREATED,
+  'comment.reaction.toggled': SOCIAL_EVENTS.LIKE_ADDED,
+  'reply.created': SOCIAL_EVENTS.COMMENT_CREATED,
+  'reply.reaction.toggled': SOCIAL_EVENTS.LIKE_ADDED,
+};
+
+type LegacyEventName = keyof LegacyEventMap;
 type SocialEventPayload = Record<string, string | number | boolean | null | undefined>;
 
-interface SocialEvent {
-  name: SocialEventName;
-  payload: SocialEventPayload;
-  occurredAt: string;
-}
-
-const exchangeName = process.env.RABBITMQ_EXCHANGE || 'socialmedia.events';
-
-async function publishToRabbitMq(event: SocialEvent) {
-  if (!process.env.RABBITMQ_URL) {
-    return false;
-  }
-
-  try {
-    const imported = await new Function('specifier', 'return import(specifier)')('amqplib');
-    const connection = await imported.connect(process.env.RABBITMQ_URL);
-    const channel = await connection.createChannel();
-
-    await channel.assertExchange(exchangeName, 'topic', { durable: true });
-    channel.publish(
-      exchangeName,
-      event.name,
-      Buffer.from(JSON.stringify(event)),
-      {
-        contentType: 'application/json',
-        persistent: true,
-      }
-    );
-
-    await channel.close();
-    await connection.close();
-    return true;
-  } catch (error) {
-    console.warn('RabbitMQ publish failed, falling back to local log', error);
-    return false;
-  }
-}
-
 export async function enqueueSocialEvent(
-  name: SocialEventName,
-  payload: SocialEventPayload
+  name: LegacyEventName,
+  payload: SocialEventPayload,
 ) {
-  const event: SocialEvent = {
-    name,
-    payload,
-    occurredAt: new Date().toISOString(),
-  };
-
-  const published = await publishToRabbitMq(event);
-  if (!published && process.env.NODE_ENV !== 'production') {
-    console.info('[background-job]', event);
-  }
+  const mappedType = legacyMapping[name] as SocialEventType;
+  await publishEvent(mappedType, payload as Record<string, unknown>);
 }

@@ -1,14 +1,14 @@
-import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import {
-  successResponse,
-  handleApiError,
   forbidden,
+  handleApiError,
   notFound,
+  successResponse,
   validationError,
 } from '@/lib/api-response';
 import { getAuthFromRequest } from '@/lib/auth-utils';
+import { prisma } from '@/lib/prisma';
 import { UpdateCommentSchema } from '@/lib/validation';
+import { NextRequest } from 'next/server';
 
 export async function PATCH(
   request: NextRequest,

@@ -25,7 +25,7 @@ export interface Post {
   commentCount?: number;
   likedUsers?: PublicUser[];
   authorId: string;
-  author: User;
+  author: User | PublicUser;
   createdAt: Date;
   updatedAt: Date;
   comments?: Comment[];
@@ -50,7 +50,7 @@ export interface Comment {
   content: string;
   postId: string;
   authorId: string;
-  author: User;
+  author: User | PublicUser;
   createdAt: Date;
   updatedAt: Date;
   replies?: Reply[];
@@ -70,7 +70,7 @@ export interface Reply {
   content: string;
   commentId: string;
   authorId: string;
-  author: User;
+  author: User | PublicUser;
   createdAt: Date;
   updatedAt: Date;
   likes?: Like[];

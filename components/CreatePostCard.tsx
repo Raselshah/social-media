@@ -3,6 +3,7 @@
 import { User } from '@/types';
 import Image from 'next/image';
 import React, { FormEvent, useState } from 'react';
+import { uploadApi } from '@/services/api/upload.api';
 
 interface CreatePostCardProps {
   currentUser: User | null;
@@ -37,20 +38,10 @@ export const CreatePostCard: React.FC<CreatePostCardProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     setIsUploading(true);
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.message || 'Image upload failed');
-      }
-      setImageUrl(payload.data.url);
+      const url = await uploadApi.uploadImage(file);
+      setImageUrl(url);
     } catch (error) {
       console.error('Upload error:', error);
     } finally {
