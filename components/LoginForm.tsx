@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { LoginSchema } from '@/lib/validation';
-import axios from 'axios';
+import { ApiClientError } from '@/lib/axios/errors';
 import { useRouter } from 'next/navigation';
 import React, { ChangeEvent, FormEvent, useState } from 'react';
 import { ZodError } from 'zod';
@@ -50,8 +50,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           }
         });
         setErrors(fieldErrors);
-      } else if (axios.isAxiosError<{ message?: string }>(err)) {
-        setServerError(err.response?.data?.message || 'Login failed. Please try again.');
+      } else if (err instanceof ApiClientError) {
+        setServerError(err.message || 'Login failed. Please try again.');
       } else if (err instanceof Error) {
         setServerError(err.message);
       } else {

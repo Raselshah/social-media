@@ -1,7 +1,7 @@
 'use client';
 
 import { User } from '@/types';
-import axios from 'axios';
+import { authApi } from '@/services/api/auth.api';
 import { Bell, ChevronDown, House, LogOut, Menu, MessageCircleMore, Search, Settings, User as UserIcon, Users, X } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -89,9 +89,7 @@ export const FeedLayout: React.FC<FeedLayoutProps> = ({
 
     try {
       // Call logout API
-      await axios.post('/api/auth/logout', {}, {
-        withCredentials: true, // Include cookies in request
-      });
+      await authApi.logout();
 
       // Clear all cookies
       document.cookie.split(';').forEach((cookie) => {

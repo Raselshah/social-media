@@ -9,8 +9,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { Spinner } from '@/components/Spinner';
 import { Stories } from '@/components/Stories';
 import { useAuth } from '@/hooks/useAuth';
-import { usePosts } from '@/hooks/usePosts';
-import axios from 'axios';
+import { usePosts, useFeedInfiniteScroll, useFeedPrefetch } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -25,19 +24,20 @@ export default function FeedPage() {
     fetchPosts,
     createPost,
     deletePost,
-    updatePostReaction,
     incrementCommentCount,
     loadMore,
+    likePost,
   } = usePosts();
 
-  // Redirect if not authenticated
+  const scrollSentinelRef = useFeedInfiniteScroll(loadMore, hasMore, loading);
+  useFeedPrefetch(posts.map((p) => p.id));
+
   useEffect(() => {
     if (!userLoading && !user) {
       router.push('/login');
     }
   }, [user, userLoading, router]);
 
-  // Fetch posts on mount
   useEffect(() => {
     if (user) {
       fetchPosts();
@@ -54,8 +54,7 @@ export default function FeedPage() {
 
   const handleLikePost = async (postId: string) => {
     try {
-      const response = await axios.post(`/api/posts/${postId}/like`);
-      updatePostReaction(postId, response.data.data);
+      await likePost(postId);
     } catch (err) {
       console.error('Failed to like/unlike post:', err);
     }
@@ -131,6 +130,9 @@ export default function FeedPage() {
             </Button>
           </div>
         )}
+
+        {/* Infinite scroll sentinel (preloads next page before user reaches bottom) */}
+        <div ref={scrollSentinelRef} className="h-1" aria-hidden="true" />
       </div>
     </>
   );

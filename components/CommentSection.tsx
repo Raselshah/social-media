@@ -1,9 +1,9 @@
 'use client';
 
-import { Comment, Reply, User } from '@/types';
-import axios from 'axios';
+import { Comment, Reply, User, PublicUser } from '@/types';
+import { useComments } from '@/hooks/useComments';
 import Image from 'next/image';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
 function formatDistanceToNow(date: Date): string {
   const diffMins = Math.floor((Date.now() - date.getTime()) / 60000);
@@ -22,7 +22,6 @@ interface UnifiedInputBoxProps {
   onSubmit?: () => void;
 }
 
-// Unified Input Component
 const UnifiedInputBox: React.FC<UnifiedInputBoxProps> = ({
   value,
   setValue,
@@ -87,45 +86,39 @@ interface CommentSectionProps {
   postId: string;
   currentUser: User | null;
   onCommentCreated?: () => void;
-  showCommentInput?: boolean; // New prop to control comment input visibility
+  showCommentInput?: boolean;
 }
 
 export const CommentSection: React.FC<CommentSectionProps> = ({
   postId,
   currentUser,
   onCommentCreated,
-  showCommentInput = false, // Default to false
+  showCommentInput = false,
 }) => {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const {
+    comments,
+    loading,
+    createComment,
+    createReply,
+    toggleCommentLike,
+    toggleReplyLike,
+    deleteComment,
+    deleteReply,
+  } = useComments(postId);
+
   const [content, setContent] = useState('');
   const [replyContent, setReplyContent] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isCommentFocused, setIsCommentFocused] = useState(false);
   const [replyFocused, setReplyFocused] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const fetchComments = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get(`/api/posts/${postId}/comments`);
-        setComments(response.data.data || []);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchComments();
-  }, [postId]);
 
   const handleSubmitComment = async () => {
     if (!content.trim()) return;
 
     setSubmitting(true);
     try {
-      const response = await axios.post(`/api/posts/${postId}/comments`, { content });
-      setComments((prev) => [response.data.data, ...prev]);
+      await createComment(content);
       setContent('');
       onCommentCreated?.();
     } finally {
@@ -138,14 +131,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
     if (!value) return;
 
     try {
-      const response = await axios.post(`/api/comments/${commentId}/replies`, { content: value });
-      setComments((prev) =>
-        prev.map((comment) =>
-          comment.id === commentId
-            ? { ...comment, replies: [...(comment.replies || []), response.data.data] }
-            : comment
-        )
-      );
+      await createReply({ commentId, content: value });
       setReplyContent((prev) => ({ ...prev, [commentId]: '' }));
       setActiveReplyId(null);
     } catch (error) {
@@ -155,12 +141,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
 
   const handleToggleCommentLike = async (commentId: string) => {
     try {
-      const response = await axios.post(`/api/comments/${commentId}/like`);
-      setComments((prev) =>
-        prev.map((comment) =>
-          comment.id === commentId ? { ...comment, ...response.data.data } : comment
-        )
-      );
+      await toggleCommentLike(commentId);
     } catch (error) {
       console.error('Error toggling comment like:', error);
     }
@@ -168,19 +149,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
 
   const handleToggleReplyLike = async (commentId: string, replyId: string) => {
     try {
-      const response = await axios.post(`/api/replies/${replyId}/like`);
-      setComments((prev) =>
-        prev.map((comment) =>
-          comment.id === commentId
-            ? {
-                ...comment,
-                replies: (comment.replies || []).map((reply) =>
-                  reply.id === replyId ? { ...reply, ...response.data.data } : reply
-                ),
-              }
-            : comment
-        )
-      );
+      await toggleReplyLike({ commentId, replyId });
     } catch (error) {
       console.error('Error toggling reply like:', error);
     }
@@ -189,8 +158,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
     try {
-      await axios.delete(`/api/comments/${commentId}`);
-      setComments((prev) => prev.filter((comment) => comment.id !== commentId));
+      await deleteComment(commentId);
     } catch (error) {
       console.error('Error deleting comment:', error);
     }
@@ -199,14 +167,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
   const handleDeleteReply = async (commentId: string, replyId: string) => {
     if (!confirm('Are you sure you want to delete this reply?')) return;
     try {
-      await axios.delete(`/api/replies/${replyId}`);
-      setComments((prev) =>
-        prev.map((comment) =>
-          comment.id === commentId
-            ? { ...comment, replies: (comment.replies || []).filter((reply) => reply.id !== replyId) }
-            : comment
-        )
-      );
+      await deleteReply({ commentId, replyId });
     } catch (error) {
       console.error('Error deleting reply:', error);
     }
@@ -214,20 +175,18 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
 
   const toggleReplyInput = (commentId: string) => {
     setActiveReplyId(activeReplyId === commentId ? null : commentId);
-    // Reset reply content when toggling
     if (activeReplyId !== commentId) {
       setReplyContent((prev) => ({ ...prev, [commentId]: '' }));
     }
   };
 
-  const renderLikedUsers = (item: Comment | Reply) =>
+  const renderLikedUsers = (item: { likedUsers?: PublicUser[] }) =>
     item.likedUsers?.length
       ? item.likedUsers.map((user) => `${user.firstName} ${user.lastName}`).join(', ')
       : 'No likes yet';
 
   return (
     <div className="border-t border-[#eef0f3] bg-[#fbfcfe] px-3 sm:px-[25px] py-3 sm:py-4">
-      {/* Comment Input - Only shows when showCommentInput is true */}
       {currentUser && showCommentInput && (
         <div className="mb-3 sm:mb-4">
           <UnifiedInputBox
@@ -292,7 +251,6 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                   <span className="cursor-default">{formatDistanceToNow(new Date(comment.createdAt))}</span>
                 </div>
 
-                {/* Replies Section */}
                 {(comment.replies || []).length > 0 && (
                   <div className="mt-2 sm:mt-3 space-y-2 sm:space-y-3">
                     {(comment.replies || []).map((reply) => (
@@ -339,7 +297,6 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                   </div>
                 )}
 
-                {/* Reply Input - Only shows when Reply button is clicked */}
                 {activeReplyId === comment.id && currentUser && (
                   <div className="mt-2 sm:mt-3">
                     <UnifiedInputBox

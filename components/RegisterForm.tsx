@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ErrorMessage } from './ErrorMessage';
 import { useAuth } from '@/hooks/useAuth';
 import { RegisterSchema } from '@/lib/validation';
-import axios from 'axios';
+import { ApiClientError } from '@/lib/axios/errors';
 import { ZodError } from 'zod';
 
 interface RegisterFormProps {
@@ -66,8 +66,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
           }
         });
         setErrors(fieldErrors);
-      } else if (axios.isAxiosError<{ message?: string }>(err)) {
-        setServerError(err.response?.data?.message || 'Registration failed. Please try again.');
+      } else if (err instanceof ApiClientError) {
+        setServerError(err.message || 'Registration failed. Please try again.');
       } else if (err instanceof Error) {
         setServerError(err.message);
       } else {
