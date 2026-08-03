@@ -26,6 +26,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         )}
+        {/* common input */}
         <input
           ref={ref}
           className={`px-4 py-2.5 border-2 rounded-lg font-poppins text-base transition-all duration-200 focus:outline-none ${
