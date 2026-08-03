@@ -9,7 +9,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { Spinner } from '@/components/Spinner';
 import { Stories } from '@/components/Stories';
 import { useAuth } from '@/hooks/useAuth';
-import { usePosts, useFeedInfiniteScroll, useFeedPrefetch } from '@/hooks/usePosts';
+import { useFeedInfiniteScroll, useFeedPrefetch, usePosts } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -138,11 +138,11 @@ export default function FeedPage() {
   );
 
   return (
-    // <FeedLayout
-    //   sidebar={<Sidebar currentUser={user} onLogout={handleLogout} />}
-    //   center={centerContent}
-    //   rightbar={<Rightbar />}
-    //   currentUser={user}
-    // />
+    <FeedLayout
+      sidebar={<Sidebar currentUser={user} onLogout={handleLogout} />}
+      center={centerContent}
+      rightbar={<Rightbar />}
+      currentUser={user}
+    />
   );
 }
