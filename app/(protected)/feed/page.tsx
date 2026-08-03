@@ -138,6 +138,7 @@ export default function FeedPage() {
   );
 
   return (
+    // feed layout with sidebar, center content, and rightbar
     <FeedLayout
       sidebar={<Sidebar currentUser={user} onLogout={handleLogout} />}
       center={centerContent}
