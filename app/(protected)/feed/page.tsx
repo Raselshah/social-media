@@ -138,11 +138,11 @@ export default function FeedPage() {
   );
 
   return (
-    <FeedLayout
-      sidebar={<Sidebar currentUser={user} onLogout={handleLogout} />}
-      center={centerContent}
-      rightbar={<Rightbar />}
-      currentUser={user}
-    />
+    // <FeedLayout
+    //   sidebar={<Sidebar currentUser={user} onLogout={handleLogout} />}
+    //   center={centerContent}
+    //   rightbar={<Rightbar />}
+    //   currentUser={user}
+    // />
   );
 }
