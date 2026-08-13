@@ -110,6 +110,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showComments, setShowComments] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isPopping, setIsPopping] = useState(false);
   
   // State for the main post comment input
   const [commentText, setCommentText] = useState('');
@@ -132,6 +133,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const handleLike = async () => {
     setIsLiking(true);
+    setIsPopping(true);
     try {
       await onLike?.(post.id);
     } finally {
@@ -305,9 +307,22 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           onClick={handleLike}
           disabled={isLiking}
-          className={`flex h-[36px] sm:h-[42px] items-center justify-center gap-1 sm:gap-2 rounded-[4px] sm:rounded-[6px] transition-colors hover:bg-gray-50 text-[12px] sm:text-[14px] ${isLiked ? 'text-[#168bff] bg-blue-50/50' : ''}`}
+          className={`group relative flex h-[36px] sm:h-[42px] items-center justify-center gap-1 sm:gap-2 rounded-[4px] sm:rounded-[6px] transition-colors hover:bg-gray-50 text-[12px] sm:text-[14px] ${isLiked ? 'text-[#168bff] bg-blue-50/50' : ''}`}
         >
-          <span className="text-base sm:text-xl">😃</span> 
+          <span className="relative flex items-center justify-center">
+            {isPopping && (
+              <span
+                aria-hidden="true"
+                className="emoji-burst pointer-events-none absolute inset-0 -m-1 rounded-full bg-amber-300"
+              />
+            )}
+            <span
+              className={`emoji-animate relative text-base sm:text-xl ${isPopping ? 'is-popping' : ''}`}
+              onAnimationEnd={() => setIsPopping(false)}
+            >
+              😃
+            </span>
+          </span>
           <span className="hidden xs:inline">Haha</span>
         </button>
         <button onClick={() => setShowComments(!showComments)} className="flex h-[36px] sm:h-[42px] items-center justify-center gap-1 sm:gap-2 rounded-[4px] sm:rounded-[6px] transition-colors hover:bg-gray-50 text-[12px] sm:text-[14px]">

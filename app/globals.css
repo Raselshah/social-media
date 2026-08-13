@@ -51,3 +51,55 @@ body::-webkit-scrollbar {
 .button{
   cursor: pointer !important;
 }
+
+/* Animated reaction emoji */
+@keyframes emoji-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2px) rotate(-6deg); }
+}
+
+@keyframes emoji-pop {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.5) rotate(-14deg); }
+  65% { transform: scale(0.88) rotate(10deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes emoji-wiggle {
+  0%, 100% { transform: scale(1.2) rotate(-10deg); }
+  50% { transform: scale(1.2) rotate(10deg); }
+}
+
+@keyframes emoji-burst {
+  0% { transform: scale(0.4); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+.emoji-animate {
+  display: inline-block;
+  animation: emoji-float 2.8s ease-in-out infinite;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.group:hover .emoji-animate {
+  animation: emoji-wiggle 0.45s ease-in-out infinite;
+}
+
+.emoji-animate.is-popping,
+.group:hover .emoji-animate.is-popping {
+  animation: emoji-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.emoji-burst {
+  animation: emoji-burst 0.55s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emoji-animate,
+  .group:hover .emoji-animate,
+  .emoji-animate.is-popping,
+  .emoji-burst {
+    animation: none !important;
+  }
+}
