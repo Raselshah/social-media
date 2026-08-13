@@ -6,6 +6,14 @@ import { EllipsisVertical } from 'lucide-react';
 import Image from 'next/image';
 import React, { useEffect, useRef, useState } from 'react';
 import { CommentSection } from './CommentSection';
+import { ReactionPicker } from './ReactionPicker';
+import {
+  DEFAULT_REACTION,
+  REACTIONS,
+  ReactionType,
+  topReactions,
+  totalReactions,
+} from '@/constants/reactions';
 
 function formatDistanceToNow(date: Date): string {
   const now = new Date();
@@ -13,11 +21,6 @@ function formatDistanceToNow(date: Date): string {
   if (diffMins < 1) return 'just now';
   if (diffMins < 60) return `${diffMins} minute ago`;
   return `${Math.floor(diffMins / 60)} hour ago`;
-}
-
-// Helper to extract the very first letter of the name
-function getFirstLetter(firstName: string): string {
-  return firstName?.charAt(0).toUpperCase() || 'U';
 }
 
 interface UnifiedInputBoxProps {
@@ -95,6 +98,7 @@ interface PostCardProps {
   currentUser: User | null;
   onDelete?: (postId: string) => void;
   onLike?: (postId: string) => void;
+  onReact?: (postId: string, type: ReactionType) => void | Promise<unknown>;
   onCommentCreated?: (postId: string) => void;
   isLiked?: boolean;
 }
@@ -104,14 +108,13 @@ export const PostCard: React.FC<PostCardProps> = ({
   currentUser,
   onDelete,
   onLike,
+  onReact,
   onCommentCreated,
-  isLiked = false,
 }) => {
   const [showComments, setShowComments] = useState(false);
-  const [isLiking, setIsLiking] = useState(false);
+  const [isReacting, setIsReacting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [isPopping, setIsPopping] = useState(false);
-  
+
   // State for the main post comment input
   const [commentText, setCommentText] = useState('');
   const [isCommentFocused, setIsCommentFocused] = useState(false);
@@ -131,13 +134,18 @@ export const PostCard: React.FC<PostCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLike = async () => {
-    setIsLiking(true);
-    setIsPopping(true);
+  const handleReact = async (type: ReactionType) => {
+    setIsReacting(true);
     try {
-      await onLike?.(post.id);
+      if (onReact) {
+        await onReact(post.id, type);
+      } else {
+        await onLike?.(post.id);
+      }
+    } catch (error) {
+      console.error('Failed to react to post:', error);
     } finally {
-      setIsLiking(false);
+      setIsReacting(false);
     }
   };
 
@@ -161,9 +169,17 @@ export const PostCard: React.FC<PostCardProps> = ({
   const commentCount = post.commentCount ?? post._count?.comments ?? 0;
   const postImage = post.imageUrl || '/assets/images/recommend3.png';
 
-  const primaryLikerName = post.likedUsers?.[0] 
+  const primaryLikerName = post.likedUsers?.[0]
     ? `${post.likedUsers[0].firstName} ${post.likedUsers[0].lastName}`
     : null;
+
+  const currentReaction: ReactionType | null =
+    post.currentUserReaction ?? (post.likedByCurrentUser ? DEFAULT_REACTION : null);
+  const reactionTotal =
+    totalReactions(post.reactionCounts) || post.likeCount || post.likedUsers?.length || 0;
+  const shownReactions = topReactions(post.reactionCounts);
+  const reactionBadges =
+    shownReactions.length > 0 ? shownReactions : reactionTotal > 0 ? [DEFAULT_REACTION] : [];
 
   return (
     <article className="mb-3 sm:mb-4 rounded-[8px] sm:rounded-[12px] bg-white border border-gray-100 shadow-sm overflow-visible">
@@ -263,30 +279,28 @@ export const PostCard: React.FC<PostCardProps> = ({
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Reaction Stack */}
           <div className="flex -space-x-1.5 overflow-hidden">
-            {post.likedUsers && post.likedUsers.length > 0 ? (
-              post.likedUsers.slice(0, 3).map((user, i) => {
-                const bgColors = ['bg-amber-500', 'bg-blue-500', 'bg-rose-500'];
-                return (
-                  <div
-                    key={i}
-                    className={`inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full ring-2 ring-white text-[8px] sm:text-[10px] font-bold text-white uppercase ${bgColors[i % bgColors.length]}`}
-                  >
-                    {getFirstLetter(user.firstName)}
-                  </div>
-                );
-              })
+            {reactionBadges.length > 0 ? (
+              reactionBadges.map((type) => (
+                <span
+                  key={type}
+                  title={`${REACTIONS[type].label} ${post.reactionCounts?.[type] ?? ''}`.trim()}
+                  className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full ring-2 ring-white bg-white text-[10px] sm:text-[12px] leading-none"
+                >
+                  {REACTIONS[type].emoji}
+                </span>
+              ))
             ) : (
-              <div className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full ring-2 ring-white bg-gray-300 text-[8px] sm:text-[10px] font-bold text-white">
-                R
-              </div>
+              <span className="inline-flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full ring-2 ring-white bg-gray-100 text-[10px] sm:text-[12px] leading-none opacity-60">
+                {REACTIONS[DEFAULT_REACTION].emoji}
+              </span>
             )}
           </div>
-          
+
           <span className="text-[11px] sm:text-[13px] text-gray-500 font-normal">
             {primaryLikerName ? (
               <>
                 <span className="font-semibold text-gray-700">{primaryLikerName}</span>
-                {post.likedUsers!.length > 1 && ` and ${post.likedUsers!.length - 1} others`}
+                {reactionTotal > 1 && ` and ${reactionTotal - 1} others`}
               </>
             ) : (
               "Be the first to react"
@@ -304,27 +318,11 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Action Row Grid */}
       <div className="mx-4 sm:mx-[24px] grid grid-cols-3 py-1 sm:py-[6px] text-[12px] sm:text-[14px] font-semibold text-gray-500 gap-1 sm:gap-0">
-        <button
-          onClick={handleLike}
-          disabled={isLiking}
-          className={`group relative flex h-[36px] sm:h-[42px] items-center justify-center gap-1 sm:gap-2 rounded-[4px] sm:rounded-[6px] transition-colors hover:bg-gray-50 text-[12px] sm:text-[14px] ${isLiked ? 'text-[#168bff] bg-blue-50/50' : ''}`}
-        >
-          <span className="relative flex items-center justify-center">
-            {isPopping && (
-              <span
-                aria-hidden="true"
-                className="emoji-burst pointer-events-none absolute inset-0 -m-1 rounded-full bg-amber-300"
-              />
-            )}
-            <span
-              className={`emoji-animate relative text-base sm:text-xl ${isPopping ? 'is-popping' : ''}`}
-              onAnimationEnd={() => setIsPopping(false)}
-            >
-              😃
-            </span>
-          </span>
-          <span className="hidden xs:inline">Haha</span>
-        </button>
+        <ReactionPicker
+          current={currentReaction}
+          onPick={handleReact}
+          disabled={isReacting}
+        />
         <button onClick={() => setShowComments(!showComments)} className="flex h-[36px] sm:h-[42px] items-center justify-center gap-1 sm:gap-2 rounded-[4px] sm:rounded-[6px] transition-colors hover:bg-gray-50 text-[12px] sm:text-[14px]">
           <svg className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
           <span className="hidden xs:inline">Comment</span>

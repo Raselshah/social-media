@@ -1,3 +1,5 @@
+import type { ReactionType } from '@/constants/reactions';
+
 // User & Auth Types
 export interface User {
   id: string;
@@ -24,6 +26,8 @@ export interface Post {
   likeCount?: number;
   commentCount?: number;
   likedUsers?: PublicUser[];
+  currentUserReaction?: ReactionType | null;
+  reactionCounts?: Partial<Record<ReactionType, number>>;
   authorId: string;
   author: User | PublicUser;
   createdAt: Date;

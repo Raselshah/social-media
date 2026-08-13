@@ -88,6 +88,7 @@ model PostLike {
   id        String   @id @default(cuid())
   userId    String
   postId    String
+  type      String   @default("LIKE")
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -95,6 +96,7 @@ model PostLike {
 
   @@unique([userId, postId], map: "unique_post_like")
   @@index([postId])
+  @@index([postId, type])
 }
 
 model CommentLike {

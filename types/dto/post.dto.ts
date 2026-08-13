@@ -1,3 +1,4 @@
+import { ReactionType } from '@/constants/reactions';
 import { PublicUserDto, UserDto } from '@/types/dto/auth.dto';
 
 export interface PostDto {
@@ -13,6 +14,8 @@ export interface PostDto {
   likeCount: number;
   commentCount: number;
   likedUsers: PublicUserDto[];
+  currentUserReaction: ReactionType | null;
+  reactionCounts: Record<ReactionType, number>;
   comments?: CommentPreviewDto[];
 }
 
@@ -42,4 +45,11 @@ export interface ReactionDto {
   likedUsers: PublicUserDto[];
 }
 
+/** Post reactions carry a type (like / haha / angry) on top of the plain like shape. */
+export interface PostReactionDto extends ReactionDto {
+  currentUserReaction: ReactionType | null;
+  reactionCounts: Record<ReactionType, number>;
+}
+
 export type { UserDto, PublicUserDto };
+export type { ReactionType };

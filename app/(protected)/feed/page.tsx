@@ -10,6 +10,7 @@ import { Spinner } from '@/components/Spinner';
 import { Stories } from '@/components/Stories';
 import { useAuth } from '@/hooks/useAuth';
 import { useFeedInfiniteScroll, useFeedPrefetch, usePosts } from '@/hooks/usePosts';
+import { ReactionType } from '@/constants/reactions';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -26,7 +27,7 @@ export default function FeedPage() {
     deletePost,
     incrementCommentCount,
     loadMore,
-    likePost,
+    reactToPost,
   } = usePosts();
 
   const scrollSentinelRef = useFeedInfiniteScroll(loadMore, hasMore, loading);
@@ -52,11 +53,11 @@ export default function FeedPage() {
     await deletePost(postId);
   };
 
-  const handleLikePost = async (postId: string) => {
+  const handleReactToPost = async (postId: string, type: ReactionType) => {
     try {
-      await likePost(postId);
+      await reactToPost(postId, type);
     } catch (err) {
-      console.error('Failed to like/unlike post:', err);
+      console.error('Failed to react to post:', err);
     }
   };
 
@@ -110,8 +111,7 @@ export default function FeedPage() {
                 post={post}
                 currentUser={user}
                 onDelete={handleDeletePost}
-                onLike={handleLikePost}
-                isLiked={Boolean(post.likedByCurrentUser)}
+                onReact={handleReactToPost}
                 onCommentCreated={incrementCommentCount}
               />
             ))}

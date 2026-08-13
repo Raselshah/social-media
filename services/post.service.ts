@@ -4,7 +4,13 @@ import { publishEvent } from '@/lib/kafka/producer';
 import { postRepository } from '@/repositories/post.repository';
 import { feedService, mapPostToDto } from '@/modules/feed/feed.service';
 import { cacheInvalidationService } from '@/services/cache-invalidation.service';
-import { CreatePostDto, PostDto, ReactionDto } from '@/types/dto/post.dto';
+import { CreatePostDto, PostDto, PostReactionDto } from '@/types/dto/post.dto';
+import {
+  DEFAULT_REACTION,
+  emptyReactionCounts,
+  ReactionType,
+  toReactionType,
+} from '@/constants/reactions';
 
 export const postService = {
   async getFeed(params: { userId?: string; cursor?: string; take?: number }) {
@@ -63,28 +69,45 @@ export const postService = {
     await cacheInvalidationService.onPostDeleted(postId, userId);
   },
 
-  async toggleLike(postId: string, userId: string): Promise<ReactionDto> {
+  /** Sets (or clears, when re-picked) the viewer's reaction on a post. */
+  async setReaction(
+    postId: string,
+    userId: string,
+    type: ReactionType,
+  ): Promise<PostReactionDto> {
     const post = await postRepository.findById(postId);
     if (!post) throw new ApiError(404, 'Post not found');
     if (post.visibility === 'PRIVATE' && post.authorId !== userId) {
       throw new ApiError(404, 'Post not found');
     }
 
-    const { liked } = await postRepository.toggleLike(postId, userId);
+    const { reaction } = await postRepository.setReaction(postId, userId, type);
 
-    await publishEvent(liked ? SOCIAL_EVENTS.LIKE_ADDED : SOCIAL_EVENTS.LIKE_REMOVED, {
+    await publishEvent(reaction ? SOCIAL_EVENTS.LIKE_ADDED : SOCIAL_EVENTS.LIKE_REMOVED, {
       postId,
       userId,
       entityType: 'post',
+      reaction,
     });
 
     await cacheInvalidationService.onLikeChanged(postId, post.authorId);
 
     const likes = await postRepository.getLikes(postId);
+    const reactionCounts = likes.reduce((acc, like) => {
+      acc[toReactionType(like.type)] += 1;
+      return acc;
+    }, emptyReactionCounts());
+
     return {
-      likedByCurrentUser: likes.some((l) => l.user.id === userId),
+      likedByCurrentUser: reaction !== null,
       likeCount: likes.length,
       likedUsers: likes.map((l) => l.user),
+      currentUserReaction: reaction,
+      reactionCounts,
     };
+  },
+
+  async toggleLike(postId: string, userId: string): Promise<PostReactionDto> {
+    return postService.setReaction(postId, userId, DEFAULT_REACTION);
   },
 };

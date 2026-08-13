@@ -7,11 +7,41 @@ import { publishEvent } from '@/lib/kafka/producer';
 import { logger } from '@/lib/logger';
 import { postRepository } from '@/repositories/post.repository';
 import { PaginatedFeedDto, PostDto } from '@/types/dto/post.dto';
+import {
+  emptyReactionCounts,
+  ReactionType,
+  toReactionType,
+} from '@/constants/reactions';
 
 type RawPost = Awaited<ReturnType<typeof postRepository.findFeed>>[number];
+type RawLike = { userId?: string; type?: string; user: PostDto['likedUsers'][number] };
 
-function mapPostToDto(post: RawPost, userId?: string): PostDto {
-  const postLikes = 'postLikes' in post ? post.postLikes : [];
+interface ReactionContext {
+  counts?: Record<ReactionType, number>;
+  viewerReaction?: ReactionType | null;
+}
+
+/** Falls back to tallying the sampled likes when no pre-computed counts are supplied. */
+function tallyReactions(likes: RawLike[]): Record<ReactionType, number> {
+  return likes.reduce((acc, like) => {
+    const type = toReactionType(like.type);
+    acc[type] += 1;
+    return acc;
+  }, emptyReactionCounts());
+}
+
+function mapPostToDto(post: RawPost, userId?: string, reactions?: ReactionContext): PostDto {
+  const postLikes: RawLike[] = 'postLikes' in post ? post.postLikes : [];
+  const sampledViewerLike = userId
+    ? postLikes.find((like) => like.userId === userId)
+    : undefined;
+  const currentUserReaction =
+    reactions?.viewerReaction !== undefined
+      ? reactions.viewerReaction
+      : sampledViewerLike
+        ? toReactionType(sampledViewerLike.type)
+        : null;
+
   return {
     id: post.id,
     content: post.content,
@@ -21,12 +51,12 @@ function mapPostToDto(post: RawPost, userId?: string): PostDto {
     author: post.author,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
-    likedByCurrentUser: Boolean(
-      userId && postLikes?.some((like: { userId?: string }) => like.userId === userId),
-    ),
+    likedByCurrentUser: currentUserReaction !== null,
     likeCount: post._count.postLikes,
     commentCount: post._count.comments,
-    likedUsers: postLikes?.map((like: { user: PostDto['likedUsers'][number] }) => like.user) ?? [],
+    likedUsers: postLikes?.map((like) => like.user) ?? [],
+    currentUserReaction,
+    reactionCounts: reactions?.counts ?? tallyReactions(postLikes),
     comments: post.comments?.map((c) => ({
       id: c.id,
       content: c.content,
@@ -61,8 +91,32 @@ export const feedService = {
       const data = hasMore ? posts.slice(0, -1) : posts;
       const nextCursor = hasMore ? data[data.length - 1]?.id : undefined;
 
+      const postIds = data.map((p) => p.id);
+      const [groupedCounts, viewerReactions] = await Promise.all([
+        postRepository.getReactionCounts(postIds),
+        params.userId
+          ? postRepository.getUserReactions(postIds, params.userId)
+          : Promise.resolve([]),
+      ]);
+
+      const countsByPost = new Map<string, Record<ReactionType, number>>();
+      for (const row of groupedCounts) {
+        const counts = countsByPost.get(row.postId) ?? emptyReactionCounts();
+        counts[toReactionType(row.type)] += row._count._all;
+        countsByPost.set(row.postId, counts);
+      }
+
+      const viewerByPost = new Map<string, ReactionType>(
+        viewerReactions.map((row) => [row.postId, toReactionType(row.type)]),
+      );
+
       return {
-        data: data.map((p) => mapPostToDto(p, params.userId)),
+        data: data.map((p) =>
+          mapPostToDto(p, params.userId, {
+            counts: countsByPost.get(p.id) ?? emptyReactionCounts(),
+            viewerReaction: params.userId ? (viewerByPost.get(p.id) ?? null) : null,
+          }),
+        ),
         cursor: nextCursor,
         hasMore,
       };

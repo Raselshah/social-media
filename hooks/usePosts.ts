@@ -11,6 +11,14 @@ import { feedKeys } from '@/constants/query-keys';
 import { Post } from '@/types';
 import { PostDto, PaginatedFeedDto } from '@/types/dto/post.dto';
 import { ApiClientError } from '@/lib/axios/errors';
+import {
+  DEFAULT_REACTION,
+  emptyReactionCounts,
+  ReactionType,
+  REACTION_TYPES,
+} from '@/constants/reactions';
+
+type FeedData = { pages: PaginatedFeedDto<PostDto>[]; pageParams: unknown[] };
 
 function deduplicateById<T extends { id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
@@ -21,8 +29,42 @@ function deduplicateById<T extends { id: string }>(items: T[]): T[] {
   });
 }
 
+/** Mirrors the server toggle rules so the picker feels instant: re-picking clears, a new pick switches. */
+function applyOptimisticReaction(post: PostDto, type: ReactionType): PostDto {
+  const previous = post.currentUserReaction ?? null;
+  const next = previous === type ? null : type;
+  const counts = { ...emptyReactionCounts(), ...(post.reactionCounts ?? {}) };
+
+  if (previous) counts[previous] = Math.max(0, counts[previous] - 1);
+  if (next) counts[next] += 1;
+
+  return {
+    ...post,
+    currentUserReaction: next,
+    reactionCounts: counts,
+    likedByCurrentUser: next !== null,
+    likeCount: REACTION_TYPES.reduce((sum, t) => sum + counts[t], 0),
+  };
+}
+
 export function usePosts() {
   const queryClient = useQueryClient();
+
+  const patchFeedPost = useCallback(
+    (postId: string, updater: (post: PostDto) => PostDto) => {
+      queryClient.setQueryData(feedKeys.homeInfinite(), (old: FeedData | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((p) => (p.id === postId ? updater(p) : p)),
+          })),
+        };
+      });
+    },
+    [queryClient],
+  );
 
   const {
     data,
@@ -102,21 +144,22 @@ export function usePosts() {
     },
   });
 
-  const likePostMutation = useMutation({
-    mutationFn: (postId: string) => postsApi.toggleLike(postId).then((r) => r.data.data),
-    onSuccess: (reaction, postId) => {
-      queryClient.setQueryData(feedKeys.homeInfinite(), (old: { pages: PaginatedFeedDto<PostDto>[]; pageParams: unknown[] } | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((p) =>
-              p.id === postId ? { ...p, ...reaction } : p,
-            ),
-          })),
-        };
-      });
+  const reactToPostMutation = useMutation({
+    mutationFn: ({ postId, type }: { postId: string; type: ReactionType }) =>
+      postsApi.react(postId, type).then((r) => r.data.data),
+    onMutate: async ({ postId, type }) => {
+      await queryClient.cancelQueries({ queryKey: feedKeys.homeInfinite() });
+      const previous = queryClient.getQueryData(feedKeys.homeInfinite());
+      patchFeedPost(postId, (p) => applyOptimisticReaction(p, type));
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedKeys.homeInfinite(), context.previous);
+      }
+    },
+    onSuccess: (reaction, { postId }) => {
+      patchFeedPost(postId, (p) => ({ ...p, ...reaction }));
     },
   });
 
@@ -138,39 +181,21 @@ export function usePosts() {
   );
 
   const updatePostReaction = useCallback(
-    (postId: string, reaction: Pick<Post, 'likedByCurrentUser' | 'likeCount' | 'likedUsers'>) => {
-      queryClient.setQueryData(feedKeys.homeInfinite(), (old: { pages: PaginatedFeedDto<PostDto>[]; pageParams: unknown[] } | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((p) => (p.id === postId ? { ...p, ...reaction } : p)),
-          })),
-        };
-      });
+    (
+      postId: string,
+      reaction: Pick<Post, 'likedByCurrentUser' | 'likeCount' | 'likedUsers'> &
+        Partial<Pick<PostDto, 'currentUserReaction' | 'reactionCounts'>>,
+    ) => {
+      patchFeedPost(postId, (p) => ({ ...p, ...reaction }));
     },
-    [queryClient],
+    [patchFeedPost],
   );
 
   const incrementCommentCount = useCallback(
     (postId: string) => {
-      queryClient.setQueryData(feedKeys.homeInfinite(), (old: { pages: PaginatedFeedDto<PostDto>[]; pageParams: unknown[] } | undefined) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((p) =>
-              p.id === postId
-                ? { ...p, commentCount: (p.commentCount ?? 0) + 1 }
-                : p,
-            ),
-          })),
-        };
-      });
+      patchFeedPost(postId, (p) => ({ ...p, commentCount: (p.commentCount ?? 0) + 1 }));
     },
-    [queryClient],
+    [patchFeedPost],
   );
 
   const loadMore = useCallback(async () => {
@@ -179,9 +204,15 @@ export function usePosts() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const reactToPost = useCallback(
+    async (postId: string, type: ReactionType = DEFAULT_REACTION) =>
+      reactToPostMutation.mutateAsync({ postId, type }),
+    [reactToPostMutation],
+  );
+
   const likePost = useCallback(
-    async (postId: string) => likePostMutation.mutateAsync(postId),
-    [likePostMutation],
+    async (postId: string) => reactToPost(postId, DEFAULT_REACTION),
+    [reactToPost],
   );
 
   return {
@@ -196,6 +227,7 @@ export function usePosts() {
     incrementCommentCount,
     loadMore,
     likePost,
+    reactToPost,
     prefetchNextPage,
   };
 }

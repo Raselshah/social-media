@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_PAGE_SIZE } from '@/constants/api';
+import { ReactionType } from '@/constants/reactions';
 
 const postSelect = {
   id: true,
@@ -20,6 +21,7 @@ const postSelect = {
     orderBy: { createdAt: 'desc' as const },
     select: {
       userId: true,
+      type: true,
       user: { select: { id: true, firstName: true, lastName: true } },
     },
   },
@@ -122,26 +124,58 @@ export const postRepository = {
     return prisma.post.delete({ where: { id: postId } });
   },
 
-  toggleLike(postId: string, userId: string) {
+  /**
+   * Picking the reaction already set removes it; picking a different one switches it.
+   * Returns the reaction the user ends up with, or null when it was cleared.
+   */
+  setReaction(postId: string, userId: string, type: ReactionType) {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.postLike.findUnique({
         where: { userId_postId: { userId, postId } },
+        select: { id: true, type: true },
       });
 
-      if (existing) {
+      if (existing?.type === type) {
         await tx.postLike.delete({ where: { id: existing.id } });
-        return { liked: false };
+        return { reaction: null as ReactionType | null };
       }
 
-      await tx.postLike.create({ data: { userId, postId } });
-      return { liked: true };
+      if (existing) {
+        await tx.postLike.update({ where: { id: existing.id }, data: { type } });
+        return { reaction: type as ReactionType | null };
+      }
+
+      await tx.postLike.create({ data: { userId, postId, type } });
+      return { reaction: type as ReactionType | null };
     });
   },
 
   getLikes(postId: string) {
     return prisma.postLike.findMany({
       where: { postId },
-      select: { user: { select: { id: true, firstName: true, lastName: true } } },
+      select: {
+        type: true,
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  },
+
+  /** Per-type reaction totals for a page of posts, in a single grouped query. */
+  getReactionCounts(postIds: string[]) {
+    if (postIds.length === 0) return Promise.resolve([]);
+    return prisma.postLike.groupBy({
+      by: ['postId', 'type'],
+      where: { postId: { in: postIds } },
+      _count: { _all: true },
+    });
+  },
+
+  /** The viewer's own reaction for a page of posts (the sampled postLikes may not include them). */
+  getUserReactions(postIds: string[], userId: string) {
+    if (postIds.length === 0) return Promise.resolve([]);
+    return prisma.postLike.findMany({
+      where: { postId: { in: postIds }, userId },
+      select: { postId: true, type: true },
     });
   },
 };

@@ -4,8 +4,9 @@ import {
   CreatePostDto,
   PaginatedFeedDto,
   PostDto,
-  ReactionDto,
+  PostReactionDto,
 } from '@/types/dto/post.dto';
+import { DEFAULT_REACTION, ReactionType } from '@/constants/reactions';
 
 export const postsApi = {
   getFeed(params?: { cursor?: string }) {
@@ -24,7 +25,11 @@ export const postsApi = {
     return apiClient.delete<ApiSuccessResponse<null>>(`/posts/${postId}`);
   },
 
+  react(postId: string, type: ReactionType = DEFAULT_REACTION) {
+    return apiClient.post<ApiSuccessResponse<PostReactionDto>>(`/posts/${postId}/like`, { type });
+  },
+
   toggleLike(postId: string) {
-    return apiClient.post<ApiSuccessResponse<ReactionDto>>(`/posts/${postId}/like`);
+    return postsApi.react(postId, DEFAULT_REACTION);
   },
 };
