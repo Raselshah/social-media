@@ -96,9 +96,9 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
             <button
               key={type}
               type="button"
-              role="menuitem"
+              role="menuitemradio"
               aria-label={REACTIONS[type].label}
-              aria-pressed={current === type}
+              aria-checked={current === type}
               onClick={() => pick(type)}
               className={`reaction-option group/reaction relative flex h-8 w-8 items-center justify-center rounded-full text-lg transition-transform sm:h-9 sm:w-9 sm:text-xl ${
                 current === type ? 'bg-gray-100' : 'hover:bg-gray-50'
