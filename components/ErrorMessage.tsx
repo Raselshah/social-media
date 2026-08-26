@@ -10,7 +10,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onDismiss }
     <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded mb-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-red-800">Error</h3>
+          <h className="text-sm font-medium text-red-800">Error</h>
           <p className="text-sm text-red-700 mt-1">{message}</p>
         </div>
         {onDismiss && (
